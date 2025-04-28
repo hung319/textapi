@@ -21,11 +21,11 @@ app.post('/upload/txt', (req, res) => {
     const filePath = path.join(UPLOAD_DIR, fileName);
 
     fs.writeFileSync(filePath, content, 'utf8');
-    console.log(`[+] Đã lưu file random: ${fileName}`);
+    console.log(`[+] Đã lưu file random txt: ${fileName}`);
     res.send(`http://${req.headers.host}/txt/${fileName}`);
 });
 
-// POST cố định text file (thêm vào cuối và tự kiểm tra xuống dòng)
+// POST cố định text file
 app.post('/upload/text/:filename', (req, res) => {
     const content = req.body;
     const filename = req.params.filename;
@@ -41,7 +41,7 @@ app.post('/upload/text/:filename', (req, res) => {
     }
 
     fs.appendFileSync(filePath, prefix + content + '\n', 'utf8');
-    console.log(`[+] Đã ghi thêm vào file (chuẩn dòng mới): ${filename}`);
+    console.log(`[+] Đã ghi thêm vào file text cố định: ${filename}`);
     res.send(`http://${req.headers.host}/text/${filename}`);
 });
 
@@ -63,11 +63,41 @@ app.get('/text/:filename', (req, res) => {
     if (fs.existsSync(filePath)) {
         res.sendFile(filePath);
     } else {
-        res.status(404).send('Không tìm thấy file cố định ~~');
+        res.status(404).send('Không tìm thấy file text ~~');
     }
 });
 
-// POST upload m3u8
+// GET upload text bằng query (hỗ trợ Onii-chan upload nhanh)
+app.get('/upload/text/:filename/:content', (req, res) => {
+    const filename = req.params.filename;
+    const content = req.params.content;
+    const filePath = path.join(UPLOAD_DIR, filename);
+
+    let prefix = '';
+    if (fs.existsSync(filePath)) {
+        const currentContent = fs.readFileSync(filePath, 'utf8');
+        if (!currentContent.endsWith('\n')) {
+            prefix = '\n';
+        }
+    }
+
+    fs.appendFileSync(filePath, prefix + content + '\n', 'utf8');
+    console.log(`[+] Đã thêm bằng GET vào file text: ${filename}`);
+    res.send(`http://${req.headers.host}/text/${filename}`);
+});
+
+// GET upload txt random (có thể tạo file mới từ GET)
+app.get('/upload/txt/:content', (req, res) => {
+    const content = req.params.content;
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.txt`;
+    const filePath = path.join(UPLOAD_DIR, fileName);
+
+    fs.writeFileSync(filePath, content + '\n', 'utf8');
+    console.log(`[+] Đã lưu file random txt bằng GET: ${fileName}`);
+    res.send(`http://${req.headers.host}/txt/${fileName}`);
+});
+
+// POST upload m3u8 (vẫn chỉ cho POST)
 app.post('/upload/m3u8', (req, res) => {
     const content = req.body;
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.m3u8`;
@@ -78,7 +108,7 @@ app.post('/upload/m3u8', (req, res) => {
     res.send(`http://${req.headers.host}/m3u8/${fileName}`);
 });
 
-// GET m3u8
+// GET m3u8 file
 app.get('/m3u8/:filename', (req, res) => {
     const filename = req.params.filename;
     const filePath = path.join(UPLOAD_DIR, filename);
