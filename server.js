@@ -4,127 +4,106 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
-const folderM3U8 = path.join(__dirname, 'm3u8_files');
-const folderTXT = path.join(__dirname, 'txt_files');
-
-// Tạo thư mục nếu chưa có
-if (!fs.existsSync(folderM3U8)) fs.mkdirSync(folderM3U8);
-if (!fs.existsSync(folderTXT)) fs.mkdirSync(folderTXT);
-
-// Middleware
 app.use(cors());
 app.use(express.text({ limit: '10mb' }));
 
-// Tự động xóa file quá 12 tiếng
-setInterval(() => {
-    const now = Date.now();
-    const maxAge = 12 * 60 * 60 * 1000; // 12 giờ
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR);
+}
 
-    [folderM3U8, folderTXT].forEach(folder => {
-        fs.readdir(folder, (err, files) => {
-            if (err) return console.error('Lỗi đọc thư mục:', err);
-
-            files.forEach(file => {
-                const filepath = path.join(folder, file);
-                fs.stat(filepath, (err, stats) => {
-                    if (err) return console.error('Lỗi đọc file:', err);
-                    
-                    if (now - stats.mtimeMs > maxAge) {
-                        fs.unlink(filepath, (err) => {
-                            if (err) console.error('Lỗi xóa file:', err);
-                            else console.log(`[+] Đã tự động xóa file: ${file}`);
-                        });
-                    }
-                });
-            });
-        });
-    });
-}, 10 * 60 * 1000); // Kiểm tra mỗi 10 phút
-
-// Upload m3u8 qua POST
-app.post('/upload/m3u8', (req, res) => {
-    const content = req.body;
-    if (!content) return res.status(400).send('Không có nội dung gửi lên!');
-
-    const filename = Math.random().toString(36).substring(2, 10) + '.m3u8';
-    const filepath = path.join(folderM3U8, filename);
-
-    fs.writeFile(filepath, content, (err) => {
-        if (err) {
-            console.error('Lỗi khi lưu file:', err);
-            return res.status(500).send('Lỗi server khi lưu file!');
-        }
-
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const fileUrl = `${protocol}://${host}/m3u8/${filename}`;
-
-        console.log(`[+] File .m3u8 mới lưu: ${filename}`);
-        console.log(`[+] Link truy cập: ${fileUrl}`);
-        
-        res.send(fileUrl);
-    });
-});
-
-// Upload txt qua POST
+// POST random text file
 app.post('/upload/txt', (req, res) => {
     const content = req.body;
-    if (!content) return res.status(400).send('Không có nội dung gửi lên!');
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.txt`;
+    const filePath = path.join(UPLOAD_DIR, fileName);
 
-    const filename = Math.random().toString(36).substring(2, 10) + '.txt';
-    const filepath = path.join(folderTXT, filename);
-
-    fs.writeFile(filepath, content, (err) => {
-        if (err) {
-            console.error('Lỗi khi lưu file:', err);
-            return res.status(500).send('Lỗi server khi lưu file!');
-        }
-
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const fileUrl = `${protocol}://${host}/txt/${filename}`;
-
-        console.log(`[+] File .txt mới lưu (POST): ${filename}`);
-        console.log(`[+] Nội dung file:\n${content}`);
-        console.log(`[+] Link truy cập: ${fileUrl}`);
-        
-        res.send(fileUrl);
-    });
+    fs.writeFileSync(filePath, content, 'utf8');
+    console.log(`[+] Đã lưu file random: ${fileName}`);
+    res.send(`http://${req.headers.host}/txt/${fileName}`);
 });
 
-// Upload txt qua GET (nội dung trên URL)
-app.get('/upload/txt/:text', (req, res) => {
-    const content = decodeURIComponent(req.params.text); // Giải mã URL
-    if (!content) return res.status(400).send('Không có nội dung trong URL!');
+// POST cố định text file (thêm vào cuối và tự kiểm tra xuống dòng)
+app.post('/upload/text/:filename', (req, res) => {
+    const content = req.body;
+    const filename = req.params.filename;
+    const filePath = path.join(UPLOAD_DIR, filename);
 
-    const filename = Math.random().toString(36).substring(2, 10) + '.txt';
-    const filepath = path.join(folderTXT, filename);
-
-    fs.writeFile(filepath, content, (err) => {
-        if (err) {
-            console.error('Lỗi khi lưu file:', err);
-            return res.status(500).send('Lỗi server khi lưu file!');
+    // Nếu file tồn tại, kiểm tra kết thúc có \n không
+    let prefix = '';
+    if (fs.existsSync(filePath)) {
+        const currentContent = fs.readFileSync(filePath, 'utf8');
+        if (!currentContent.endsWith('\n')) {
+            prefix = '\n';
         }
+    }
 
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const fileUrl = `${protocol}://${host}/txt/${filename}`;
-
-        console.log(`[+] File .txt mới lưu (GET): ${filename}`);
-        console.log(`[+] Nội dung file:\n${content}`);
-        console.log(`[+] Link truy cập: ${fileUrl}`);
-        
-        res.send(fileUrl);
-    });
+    fs.appendFileSync(filePath, prefix + content + '\n', 'utf8');
+    console.log(`[+] Đã ghi thêm vào file (chuẩn dòng mới): ${filename}`);
+    res.send(`http://${req.headers.host}/text/${filename}`);
 });
 
-// Phục vụ file tĩnh
-app.use('/m3u8', express.static(folderM3U8));
-app.use('/txt', express.static(folderTXT));
+// GET random text file
+app.get('/txt/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).send('Không tìm thấy file txt ~~');
+    }
+});
+
+// GET cố định text file
+app.get('/text/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).send('Không tìm thấy file cố định ~~');
+    }
+});
+
+// POST upload m3u8
+app.post('/upload/m3u8', (req, res) => {
+    const content = req.body;
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.m3u8`;
+    const filePath = path.join(UPLOAD_DIR, fileName);
+
+    fs.writeFileSync(filePath, content, 'utf8');
+    console.log(`[+] Đã lưu file m3u8: ${fileName}`);
+    res.send(`http://${req.headers.host}/m3u8/${fileName}`);
+});
+
+// GET m3u8
+app.get('/m3u8/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).send('Không tìm thấy file m3u8 ~~');
+    }
+});
+
+// Xoá file cũ hơn 12 giờ
+setInterval(() => {
+    const files = fs.readdirSync(UPLOAD_DIR);
+    const now = Date.now();
+    for (const file of files) {
+        const filePath = path.join(UPLOAD_DIR, file);
+        const stats = fs.statSync(filePath);
+        if (now - stats.mtimeMs > 12 * 60 * 60 * 1000) {
+            fs.unlinkSync(filePath);
+            console.log(`[!] Đã xoá file cũ: ${file}`);
+        }
+    }
+}, 60 * 60 * 1000); // mỗi 1 giờ
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`Mahiro Server đang chạy tại http://localhost:${PORT} ~~ UwU ~~`);
+    console.log(`[Mahiro UwU] Server chạy ngon lành tại: http://localhost:${PORT}`);
 });
