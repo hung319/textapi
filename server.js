@@ -17,10 +17,10 @@ if (!fs.existsSync(folderTXT)) fs.mkdirSync(folderTXT);
 app.use(cors());
 app.use(express.text({ limit: '10mb' }));
 
-// Tự động xoá file quá 12 tiếng
+// Tự động xóa file quá 12 tiếng
 setInterval(() => {
     const now = Date.now();
-    const maxAge = 12 * 60 * 60 * 1000; // 12h tính bằng mili giây
+    const maxAge = 12 * 60 * 60 * 1000; // 12 giờ
 
     [folderM3U8, folderTXT].forEach(folder => {
         fs.readdir(folder, (err, files) => {
@@ -33,8 +33,8 @@ setInterval(() => {
                     
                     if (now - stats.mtimeMs > maxAge) {
                         fs.unlink(filepath, (err) => {
-                            if (err) console.error('Lỗi xoá file:', err);
-                            else console.log(`[+] Đã tự động xoá file: ${file}`);
+                            if (err) console.error('Lỗi xóa file:', err);
+                            else console.log(`[+] Đã tự động xóa file: ${file}`);
                         });
                     }
                 });
@@ -43,12 +43,10 @@ setInterval(() => {
     });
 }, 10 * 60 * 1000); // Kiểm tra mỗi 10 phút
 
-// Upload m3u8
+// Upload m3u8 qua POST
 app.post('/upload/m3u8', (req, res) => {
     const content = req.body;
-    if (!content) {
-        return res.status(400).send('Không có nội dung gửi lên!');
-    }
+    if (!content) return res.status(400).send('Không có nội dung gửi lên!');
 
     const filename = Math.random().toString(36).substring(2, 10) + '.m3u8';
     const filepath = path.join(folderM3U8, filename);
@@ -70,12 +68,10 @@ app.post('/upload/m3u8', (req, res) => {
     });
 });
 
-// Upload txt
+// Upload txt qua POST
 app.post('/upload/txt', (req, res) => {
     const content = req.body;
-    if (!content) {
-        return res.status(400).send('Không có nội dung gửi lên!');
-    }
+    if (!content) return res.status(400).send('Không có nội dung gửi lên!');
 
     const filename = Math.random().toString(36).substring(2, 10) + '.txt';
     const filepath = path.join(folderTXT, filename);
@@ -90,7 +86,33 @@ app.post('/upload/txt', (req, res) => {
         const host = req.headers['x-forwarded-host'] || req.headers.host;
         const fileUrl = `${protocol}://${host}/txt/${filename}`;
 
-        console.log(`[+] File .txt mới lưu: ${filename}`);
+        console.log(`[+] File .txt mới lưu (POST): ${filename}`);
+        console.log(`[+] Nội dung file:\n${content}`);
+        console.log(`[+] Link truy cập: ${fileUrl}`);
+        
+        res.send(fileUrl);
+    });
+});
+
+// Upload txt qua GET (nội dung trên URL)
+app.get('/upload/txt/:text', (req, res) => {
+    const content = decodeURIComponent(req.params.text); // Giải mã URL
+    if (!content) return res.status(400).send('Không có nội dung trong URL!');
+
+    const filename = Math.random().toString(36).substring(2, 10) + '.txt';
+    const filepath = path.join(folderTXT, filename);
+
+    fs.writeFile(filepath, content, (err) => {
+        if (err) {
+            console.error('Lỗi khi lưu file:', err);
+            return res.status(500).send('Lỗi server khi lưu file!');
+        }
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const fileUrl = `${protocol}://${host}/txt/${filename}`;
+
+        console.log(`[+] File .txt mới lưu (GET): ${filename}`);
         console.log(`[+] Nội dung file:\n${content}`);
         console.log(`[+] Link truy cập: ${fileUrl}`);
         
