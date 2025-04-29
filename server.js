@@ -31,7 +31,6 @@ app.post('/upload/text/:filename', (req, res) => {
     const filename = req.params.filename;
     const filePath = path.join(UPLOAD_DIR, filename);
 
-    // Nếu file tồn tại, kiểm tra kết thúc có \n không
     let prefix = '';
     if (fs.existsSync(filePath)) {
         const currentContent = fs.readFileSync(filePath, 'utf8');
@@ -67,7 +66,7 @@ app.get('/text/:filename', (req, res) => {
     }
 });
 
-// GET upload text bằng query (hỗ trợ Onii-chan upload nhanh)
+// GET upload text bằng query
 app.get('/upload/text/:filename/:content', (req, res) => {
     const filename = req.params.filename;
     const content = req.params.content;
@@ -86,7 +85,7 @@ app.get('/upload/text/:filename/:content', (req, res) => {
     res.send(`http://${req.headers.host}/text/${filename}`);
 });
 
-// GET upload txt random (có thể tạo file mới từ GET)
+// GET upload txt random
 app.get('/upload/txt/:content', (req, res) => {
     const content = req.params.content;
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.txt`;
@@ -97,7 +96,7 @@ app.get('/upload/txt/:content', (req, res) => {
     res.send(`http://${req.headers.host}/txt/${fileName}`);
 });
 
-// POST upload m3u8 (vẫn chỉ cho POST)
+// POST upload m3u8
 app.post('/upload/m3u8', (req, res) => {
     const content = req.body;
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.m3u8`;
@@ -119,7 +118,20 @@ app.get('/m3u8/:filename', (req, res) => {
     }
 });
 
-// Xoá file cũ hơn 12 giờ
+// Hàm XÓA FILE bằng GET
+app.get('/del/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`[x] Đã xoá file: ${filename}`);
+        res.send(`Đã xoá file: ${filename}`);
+    } else {
+        res.status(404).send('Không tìm thấy file để xoá ~~');
+    }
+});
+
+// Xoá file tự động quá 12 giờ
 setInterval(() => {
     const files = fs.readdirSync(UPLOAD_DIR);
     const now = Date.now();
@@ -131,9 +143,9 @@ setInterval(() => {
             console.log(`[!] Đã xoá file cũ: ${file}`);
         }
     }
-}, 60 * 60 * 1000); // mỗi 1 giờ
+}, 60 * 60 * 1000);
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`[Mahiro UwU] Server chạy ngon lành tại: http://localhost:${PORT}`);
+    console.log(`[Mahiro UwU] Server chạy tại: http://localhost:${PORT}`);
 });
